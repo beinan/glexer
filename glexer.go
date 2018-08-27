@@ -10,8 +10,8 @@ func ParseSchema(schema string) error {
 
 	lexer := InitLexer(schema)
 	for lexer.Next() {
-		types := Try(Many(ATypeDef))(lexer)
-		fmt.Printf("\n types collected %#v", types)
+		schema := Try(ASchema)(lexer)
+		fmt.Printf("\n types collected %#v", schema)
 		//fmt.Println("At position", s.Pos(), ":", s.TokenText(), "--", scanner.TokenString(tok))
 	}
 	return nil

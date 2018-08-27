@@ -38,9 +38,8 @@ func (l *Lexer) IsIdent() bool {
 }
 
 func (l *Lexer) TextAndMove() string {
-	text := l.Text
-	l.Next()
-	return text
+	defer l.Next()
+	return l.Text
 }
 
 func (l *Lexer) LineStr() string {
@@ -86,148 +85,6 @@ type Position struct {
 	Column int
 }
 
-type TypeDef struct {
-	Desc string
-	Type interface{}
-}
-
-type CustomeType struct {
-	Name   string
-	Fields map[string]Field
-}
-
-type Field struct {
-	Name string
-	Type FieldType
-}
-
-type FieldType struct {
-	Name           string
-	NonNull        bool
-	IsArray        bool
-	ElementNonNull bool
-}
-
-type Comment struct {
-	Text string
-}
-
-func ATypeDef(l *Lexer) Result {
-	comments := Many(AComment)(l).Data.([]Result)
-	desc := ""
-	for _, comment := range comments {
-		desc += comment.Data.(Comment).Text + "\n"
-	}
-	aType := ACustomType(l)
-	if !aType.Found {
-		return ResultNotFound
-	}
-	return ResultFound(
-		TypeDef{
-			Desc: desc,
-			Type: aType.Data,
-		},
-		l.Pos(),
-	)
-}
-
-func AnIdent(l *Lexer) Result {
-	fmt.Println("An Ident curr token:", l.Text, scanner.TokenString(l.Tok))
-	if l.Tok != scanner.Ident {
-		return ResultNotFound
-	}
-	defer l.Next() //eat this Ident and then move next
-	return ResultFound(l.Text, l.Pos())
-}
-
-func ACustomType(l *Lexer) Result {
-	if l.Text != "type" {
-		return ResultNotFound
-	}
-	fmt.Println("custom type:", l.Text)
-	l.Next() //go to type name
-	fmt.Println("custom type type name:", l.Text)
-
-	//type name has to be an identifier
-	typeName := Enforce(l, "Type name is required", AnIdent)
-
-	//TODO: enheritance
-
-	fields := Enforce(l, "Fields are required for type", AFieldBlock)
-	fmt.Printf("fields: %+v", fields)
-	return ResultFound(
-		CustomeType{
-			Name:   typeName.Data.(string),
-			Fields: fields.Data.(map[string]Field),
-		},
-		l.Pos(),
-	)
-}
-
-func AFieldBlock(l *Lexer) Result {
-	if l.Tok != '{' {
-		return ResultNotFound
-	}
-	l.Next()
-	fields := Many(AField)(l).Data.([]Result)
-	fieldsMap := make(map[string]Field)
-	for _, fieldResult := range fields {
-		field := fieldResult.Data.(Field)
-		fieldsMap[field.Name] = field
-	}
-	Enforce(l, "Expect a '}' here", ARune('}'))
-	return ResultFound(fieldsMap, l.Pos())
-}
-
-func AField(l *Lexer) Result {
-	if !l.IsIdent() {
-		return ResultNotFound
-	}
-	fieldName := l.TextAndMove()
-	Enforce(l, "Expect a ':' here", ARune(':'))
-	fieldType := Enforce(l, "Expect a type for the field", AFieldType)
-	return ResultFound(Field{
-		Name: fieldName,
-		Type: fieldType.Data.(FieldType),
-	}, l.Pos())
-}
-
-func isNonNull(l *Lexer) bool {
-	var isNonNull bool
-	if l.Tok == '!' {
-		isNonNull = true
-		l.Next()
-	}
-	return isNonNull
-}
-func AFieldType(l *Lexer) Result {
-	if l.Tok == '[' { //array type
-		l.Next()
-		elementType := Enforce(l, "Expect a type for the array element", AFieldType)
-		isNonNull := isNonNull(l)
-		Enforce(l, "Expect a ]", ARune(']'))
-		et := elementType.Data.(FieldType)
-		return ResultFound(
-			FieldType{
-				Name:           et.Name,
-				NonNull:        isNonNull,
-				IsArray:        true,
-				ElementNonNull: et.NonNull,
-			},
-			l.Pos(),
-		)
-	} else { //non-array type
-		typeName := Enforce(l, "Expect a valid type name.", AnIdent)
-		isNonNull := isNonNull(l)
-		return ResultFound(FieldType{
-			Name:    typeName.Data.(string),
-			NonNull: isNonNull,
-		},
-			l.Pos(),
-		)
-	}
-}
-
 func ARune(ch rune) func(*Lexer) Result {
 	return func(l *Lexer) Result {
 		fmt.Println("expect:", string(ch), ch, "actual", string(l.Tok), l.Tok)
@@ -239,24 +96,23 @@ func ARune(ch rune) func(*Lexer) Result {
 	}
 }
 
-func AComment(l *Lexer) Result {
-	if l.Text != "#" {
+func AnIdent(l *Lexer) Result {
+	fmt.Println("An Ident curr token:", l.Text, scanner.TokenString(l.Tok))
+	if l.Tok != scanner.Ident {
 		return ResultNotFound
 	}
-	comment := l.LineStr()
-	return Result{
-		Data: Comment{
-			Text: comment,
-		},
-	}
+	defer l.Next() //eat this Ident and then move next
+	return ResultFound(l.Text, l.Pos())
 }
 
-func Enforce(l *Lexer, panicMsg string, aFunc func(*Lexer) Result) Result {
-	result := aFunc(l)
-	if !result.Found {
-		panic(panicMsg)
+func Enforce(aFunc func(*Lexer) Result, panicMsg string) func(*Lexer) Result {
+	return func(l *Lexer) Result {
+		result := aFunc(l)
+		if !result.Found {
+			panic(panicMsg)
+		}
+		return result
 	}
-	return result
 }
 
 func Many(aFunc func(*Lexer) Result) func(*Lexer) Result {

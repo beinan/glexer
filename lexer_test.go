@@ -6,7 +6,7 @@ var simpleSchema = `
   # A simple type
   # for lexing test
   type AType{
-    id ID
+    id: ID
     list: [Int!]
   }
 `
