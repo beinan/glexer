@@ -16,6 +16,7 @@ type Field struct {
 	Desc string
 	Name string
 	Type FieldType
+	Args map[string]Argument
 }
 
 type FieldType struct {
@@ -23,6 +24,12 @@ type FieldType struct {
 	NonNull        bool
 	IsArray        bool
 	ElementNonNull bool
+}
+
+type Argument struct {
+	Name         string
+	Type         FieldType
+	DefaultValue string //todo: using graphql_model types
 }
 
 type Comment struct {
