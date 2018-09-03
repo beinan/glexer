@@ -36,6 +36,16 @@ func exType(t *Type) Op {
 	return Or(exScalar(t), exCustomType(t))
 }
 
+func exSchemaRoot(t *Type) Op {
+	return And(ASkip("schema"),
+		exFields(&t.Fields),
+		func(_ *Lexer) bool {
+			t.Name = "schema"
+			t.Category = "schema"
+			return true
+		})
+}
+
 func exScalar(t *Type) Op {
 	return And(ASkip("scalar"), ExId(&t.Name), func(_ *Lexer) bool {
 		t.Category = "scalar"
